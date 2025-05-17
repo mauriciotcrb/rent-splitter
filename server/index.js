@@ -18,6 +18,8 @@ app.use(express.json());
 // Routes
 const authRoutes = require('./routes/auth');
 app.use('/api/auth', authRoutes);  
+const householdRoutes = require('./routes/household');
+app.use('/api/household', householdRoutes);
 
 // Start server
 app.listen(PORT, () => {
