@@ -102,4 +102,35 @@ router.get('/members', verifyToken, async (req, res) => {
   }
 });
 
+// Allow user to leave a household
+router.delete('/leave', verifyToken, async (req, res) => {
+  const userId = req.user.id;
+
+  try {
+    const household = await Household.findOne({ members: userId });
+
+    if (!household) {
+      return res.status(404).json({ message: 'Household not found' });
+    }
+
+    // Remove user from members array
+    household.members = household.members.filter(
+      (memberId) => memberId.toString() !== userId
+    );
+
+    // If no members left, delete the household
+    if (household.members.length === 0) {
+      await Household.findByIdAndDelete(household._id);
+      return res.json({ message: 'Household deleted (no members left)' });
+    }
+
+    await household.save();
+    res.json({ message: 'You have left the household' });
+
+  } catch (err) {
+    console.error('Leave error:', err.message);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
 module.exports = router;
