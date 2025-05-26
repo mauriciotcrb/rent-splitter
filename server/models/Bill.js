@@ -32,6 +32,6 @@ const billSchema = new mongoose.Schema({
     type: Date,
     default: Date.now,
   },
-});
+}, { timestamps: true });
 
 module.exports = mongoose.model('Bill', billSchema);

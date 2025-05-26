@@ -42,6 +42,35 @@ router.post('/', verifyToken, async (req, res) => {
   }
 });
 
+// List all bills in household
+router.get('/', verifyToken, async (req, res) => {
+  const userId = req.user.id;
+
+  try {
+    const household = await Household.findOne({ members: userId });
+    if (!household) {
+      return res.status(404).json({ message: 'You are not in a household' });
+    }
+
+    const isSettled = req.query.settled;
+    const filter = { household: household._id };
+
+    if (isSettled === 'true') filter.isSettled = true;
+    if (isSettled === 'false') filter.isSettled = false;
+
+    const bills = await Bill.find(filter)
+      .sort({ createdAt: -1 })
+      .populate('paidBy', 'name email')
+      .populate('splitBetween', 'name email');
+
+    res.json({ bills });
+
+  } catch (err) {
+    console.error('Get bills error:', err.message);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
 // Balance logic
 router.get('/balances', verifyToken, async (req, res) => {
   const userId = req.user.id;
