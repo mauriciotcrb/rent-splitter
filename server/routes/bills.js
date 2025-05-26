@@ -88,4 +88,87 @@ router.get('/balances', verifyToken, async (req, res) => {
   }
 });
 
+// Show Who Owes Whom
+router.get('/settlements', verifyToken, async (req, res) => {
+  const userId = req.user.id;
+
+  try {
+    const household = await Household.findOne({ members: userId });
+    if (!household) {
+      return res.status(404).json({ message: 'User not in a household' });
+    }
+
+    const bills = await Bill.find({ household: household._id });
+
+    const balances = {};
+
+    bills.forEach((bill) => {
+      const perPerson = bill.amount / bill.splitBetween.length;
+
+      bill.splitBetween.forEach((uid) => {
+        uid = uid.toString();
+        balances[uid] = (balances[uid] || 0) - perPerson;
+      });
+
+      const payer = bill.paidBy.toString();
+      balances[payer] = (balances[payer] || 0) + bill.amount;
+    });
+
+    const users = await User.find({ _id: { $in: Object.keys(balances) } });
+
+    const creditors = [];
+    const debtors = [];
+
+    users.forEach((user) => {
+      const uid = user._id.toString();
+      const balance = parseFloat(balances[uid].toFixed(2));
+      const record = {
+        id: uid,
+        name: user.name,
+        email: user.email,
+        balance
+      };
+
+      if (balance > 0) creditors.push(record);
+      else if (balance < 0) debtors.push(record);
+    });
+
+    // Greedy matching to suggest settlements
+    const settlements = [];
+
+    let i = 0, j = 0;
+
+    while (i < debtors.length && j < creditors.length) {
+      const debtor = debtors[i];
+      const creditor = creditors[j];
+
+      const amount = Math.min(
+        Math.abs(debtor.balance),
+        Math.abs(creditor.balance)
+      );
+
+      if (amount > 0) {
+        settlements.push({
+          from: debtor.name,
+          to: creditor.name,
+          amount
+        });
+
+        debtor.balance += amount;
+        creditor.balance -= amount;
+      }
+
+      if (Math.abs(debtor.balance) < 0.01) i++;
+      if (Math.abs(creditor.balance) < 0.01) j++;
+    }
+
+    res.json({ settlements });
+
+  } catch (err) {
+    console.error("Settlement error:", err.message);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+
 module.exports = router;
