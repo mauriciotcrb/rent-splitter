@@ -54,7 +54,7 @@ router.get('/balances', verifyToken, async (req, res) => {
     }
 
     // Get all bills
-    const bills = await Bill.find({ household: household._id });
+    const bills = await Bill.find({ household: household._id, isSettled: false });
 
     // Initialize balance map
     const balances = {}; // userId => balance
@@ -98,7 +98,7 @@ router.get('/settlements', verifyToken, async (req, res) => {
       return res.status(404).json({ message: 'User not in a household' });
     }
 
-    const bills = await Bill.find({ household: household._id });
+    const bills = await Bill.find({ household: household._id, isSettled: false });
 
     const balances = {};
 
@@ -170,5 +170,32 @@ router.get('/settlements', verifyToken, async (req, res) => {
   }
 });
 
+// Check if settled
+router.patch('/:id/settle', verifyToken, async (req, res) => {
+  const billId = req.params.id;
+  const userId = req.user.id;
+
+  try {
+    const bill = await Bill.findById(billId);
+    if (!bill) {
+      return res.status(404).json({ message: 'Bill not found' });
+    }
+
+    // Optional: only allow users in the household to mark it settled
+    const household = await Household.findOne({ members: userId });
+    if (!household || !bill.household.equals(household._id)) {
+      return res.status(403).json({ message: 'Not authorized for this bill' });
+    }
+
+    bill.isSettled = true;
+    await bill.save();
+
+    res.json({ message: 'Bill marked as settled', bill });
+
+  } catch (err) {
+    console.error('Settle bill error:', err.message);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
 
 module.exports = router;
